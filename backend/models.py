@@ -13,8 +13,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
-    # Nullable because accounts created via Google sign-in have no password at all.
-    hashed_password = Column(String, nullable=True)
+    hashed_password = Column(String, nullable=False)
     name = Column(String, nullable=True)
     phone = Column(String, nullable=True)
     created_at = Column(DateTime, default=utcnow)

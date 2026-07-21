@@ -105,14 +105,6 @@ export async function login(email: string, password: string): Promise<AuthRespon
   return handle(res, 'Login failed')
 }
 
-export async function googleLogin(idToken: string): Promise<AuthResponse> {
-  const res = await fetch(`${API_BASE}/api/auth/google`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: idToken }),
-  })
-  return handle(res, 'Google sign-in failed')
-}
 
 export async function fetchMe(token: string): Promise<User> {
   const res = await fetch(`${API_BASE}/api/auth/me`, {

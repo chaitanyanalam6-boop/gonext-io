@@ -1,7 +1,6 @@
 import asyncio
 import json
 import math
-import os
 import random
 import re
 import unicodedata
@@ -16,12 +15,10 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, sta
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Dict, List, Optional
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
-from google.auth.transport import requests as google_auth_requests
-from google.oauth2 import id_token as google_id_token
 
 from db import Base, engine, get_db
 from models import Comment, Expense, ExpenseSplit, Like, SavedTrip, Trip, TripMember, User
@@ -46,7 +43,6 @@ from schemas import (
     ExpenseCreate,
     ExpenseOut,
     ExpenseSplitOut,
-    GoogleAuthRequest,
     LoginRequest,
     PasswordChangeRequest,
     ProfileUpdateRequest,
@@ -118,40 +114,8 @@ def signup(request: SignupRequest, db: Session = Depends(get_db)):
 @app.post("/api/auth/login", response_model=TokenResponse)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == request.email).first()
-    # user.hashed_password is None for accounts created via Google sign-in — verify_password
-    # would crash on a None hash, so treat "no password set" the same as "wrong password".
-    if not user or not user.hashed_password or not verify_password(request.password, user.hashed_password):
+    if not user or not verify_password(request.password, user.hashed_password):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
-
-    token = create_access_token(user.id)
-    return TokenResponse(token=token, user=user_out(user))
-
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
-
-@app.post("/api/auth/google", response_model=TokenResponse)
-def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)):
-    if not GOOGLE_CLIENT_ID:
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Google sign-in is not configured")
-
-    try:
-        idinfo = google_id_token.verify_oauth2_token(
-            request.token, google_auth_requests.Request(), GOOGLE_CLIENT_ID
-        )
-    except ValueError:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid Google sign-in token")
-
-    email = idinfo.get("email")
-    if not email or not idinfo.get("email_verified"):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Google account has no verified email")
-
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        # hashed_password stays None — this account can only ever sign in via Google
-        # unless the user later sets a password from Settings.
-        user = User(email=email, name=idinfo.get("name"))
-        db.add(user)
-        db.commit()
-        db.refresh(user)
 
     token = create_access_token(user.id)
     return TokenResponse(token=token, user=user_out(user))

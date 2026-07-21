@@ -1373,35 +1373,6 @@ body {
   gap: 1rem;
 }
 
-.auth-oauth-row {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1rem;
-}
-
-.google-signin-btn {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-.auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-  color: var(--muted);
-  font-size: 0.8rem;
-}
-
-.auth-divider::before,
-.auth-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
 .auth-submit {
   background: var(--accent);
   color: #12233d;

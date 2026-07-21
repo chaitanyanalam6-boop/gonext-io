@@ -21,7 +21,6 @@ experiences instead of a generic tourist checklist.
   simplified settle-up plan
 - **Trip assistant** — a chat assistant that answers questions about your specific itinerary
 - **Community feed** — browse and share public trips, trending destinations, top contributors
-- **Google sign-in** (optional, needs your own OAuth credentials — see setup below)
 
 ## Tech stack
 
@@ -55,7 +54,6 @@ Required env vars (see `backend/.env.example`):
 |---|---|---|
 | `GEMINI_API_KEY` | yes | [Get one here](https://aistudio.google.com/apikey) |
 | `JWT_SECRET` | yes | Any long random string, used to sign auth tokens |
-| `GOOGLE_CLIENT_ID` | no | Enables "Continue with Google" — see below |
 
 The SQLite database (`travel_planner.db`) is created automatically on first run.
 
@@ -64,19 +62,8 @@ The SQLite database (`travel_planner.db`) is created automatically on first run.
 ```bash
 cd frontend/frontend/travel-planner-frontend
 npm install
-cp .env.example .env   # optional — only needed for Google sign-in or a non-default API URL
+cp .env.example .env   # optional — only needed if the backend isn't at the default URL
 npm run dev
 ```
 
 Opens at `http://localhost:5173`, talking to the backend at `http://localhost:8000` by default.
-
-### Google sign-in (optional)
-
-1. Create an OAuth Client ID (Web application) at
-   [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials.
-2. Add `http://localhost:5173` under Authorized JavaScript origins.
-3. Put the resulting Client ID in **both** `backend/.env` (`GOOGLE_CLIENT_ID`) and
-   `frontend/.../.env` (`VITE_GOOGLE_CLIENT_ID`) — same value in both.
-4. Restart both dev servers.
-
-Leave it blank in both files to run without Google sign-in — the button just won't render.

@@ -77,9 +77,6 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-class GoogleAuthRequest(BaseModel):
-    token: str
-
 class VoiceTranslateResponse(BaseModel):
     detectedLanguage: str
     transcript: str

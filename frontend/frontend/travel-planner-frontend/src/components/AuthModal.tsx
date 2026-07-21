@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useAuth } from '../AuthContext'
-import GoogleSignInButton from './GoogleSignInButton'
 
 interface AuthModalProps {
   onClose: () => void
@@ -9,8 +8,7 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ onClose, initialMode = 'login' }: AuthModalProps) {
-  const { login, signup, loginWithGoogle } = useAuth()
-  const googleConfigured = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID)
+  const { login, signup } = useAuth()
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -30,19 +28,6 @@ export default function AuthModal({ onClose, initialMode = 'login' }: AuthModalP
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleGoogleCredential(idToken: string) {
-    setError(null)
-    setLoading(true)
-    try {
-      await loginWithGoogle(idToken)
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Google sign-in failed.')
     } finally {
       setLoading(false)
     }
@@ -71,17 +56,6 @@ export default function AuthModal({ onClose, initialMode = 'login' }: AuthModalP
             Sign up
           </button>
         </div>
-
-        {googleConfigured && (
-          <>
-            <div className="auth-oauth-row">
-              <GoogleSignInButton onCredential={handleGoogleCredential} />
-            </div>
-            <div className="auth-divider">
-              <span>or</span>
-            </div>
-          </>
-        )}
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="field">
