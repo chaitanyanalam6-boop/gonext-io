@@ -1,6 +1,7 @@
-# Secrets — never commit these
+# Secrets — never commit these (but keep .env.example templates)
 .env
 .env.*
+!.env.example
 backend/.env
 
 # Database (contains real user data)
