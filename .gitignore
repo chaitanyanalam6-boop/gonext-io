@@ -1,0 +1,29 @@
+# Secrets — never commit these
+.env
+.env.*
+backend/.env
+
+# Database (contains real user data)
+*.db
+*.db.bak-*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Claude Code local settings (personal, not shared)
+.claude/settings.local.json
