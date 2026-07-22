@@ -1201,11 +1201,27 @@ async def get_exchange_rates():
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 
+_geocode_cache: dict = {}
+
 async def geocode_location(client: httpx.AsyncClient, query: str) -> Optional[tuple]:
     """Look up the real coordinates of an address via Nominatim (OpenStreetMap's
     free geocoder — same provider as our map tiles). Gemini's own lat/lon guesses
     are frequently wrong or duplicated across activities; this replaces them with
-    coordinates actually resolved from the activity's address text."""
+    coordinates actually resolved from the activity's address text.
+
+    Real-world coordinates for a named place don't change, so results are cached
+    for the life of the process — both across activities that repeat the same
+    location within one trip (e.g. the same hotel or market visited twice) and
+    across different requests entirely (a landmark like "Colosseum, Rome" gets
+    requested by every Rome trip). A cache hit skips both the network round trip
+    and the mandatory rate-limit sleep below, which is where most of the latency
+    actually is for a long itinerary.
+    """
+    cache_key = query.strip().lower()
+    if cache_key in _geocode_cache:
+        return _geocode_cache[cache_key]
+
+    result = None
     try:
         resp = await client.get(
             NOMINATIM_URL,
@@ -1216,10 +1232,15 @@ async def geocode_location(client: httpx.AsyncClient, query: str) -> Optional[tu
         if resp.status_code == 200:
             results = resp.json()
             if results:
-                return float(results[0]["lat"]), float(results[0]["lon"])
+                result = float(results[0]["lat"]), float(results[0]["lon"])
     except (httpx.HTTPError, ValueError, KeyError):
         pass
-    return None
+
+    _geocode_cache[cache_key] = result
+    # Nominatim's free-tier usage policy caps requests at 1/second with no
+    # concurrency — only needed after an actual network call, never on a cache hit.
+    await asyncio.sleep(1.0)
+    return result
 
 def _degrees_apart(a: tuple, b: tuple) -> float:
     return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
@@ -1232,7 +1253,9 @@ def _haversine_km(a: tuple, b: tuple) -> float:
 
 async def geocode_activities(trip: dict, destination: str) -> None:
     """Nominatim's usage policy caps the free public instance at 1 request/second
-    with no concurrency, so these run strictly sequentially."""
+    with no concurrency, so these run strictly sequentially — the rate-limit sleep
+    itself lives inside geocode_location() now, since it only needs to apply on an
+    actual cache-miss network call, not on every logical lookup here."""
     async with httpx.AsyncClient() as client:
         # Vague location text (e.g. "Near Hotel") can make Nominatim match some
         # unrelated place on the other side of the world. Geocode the destination
@@ -1241,7 +1264,6 @@ async def geocode_activities(trip: dict, destination: str) -> None:
         anchor = await geocode_location(client, destination)
         if anchor:
             trip["destinationLat"], trip["destinationLon"] = anchor
-        await asyncio.sleep(1.0)
 
         for day in trip.get("days", []):
             for activity in day.get("activities", []):
@@ -1252,7 +1274,6 @@ async def geocode_activities(trip: dict, destination: str) -> None:
                         coords = await geocode_location(client, location)
                     if coords and (anchor is None or _degrees_apart(coords, anchor) <= 2):
                         activity["lat"], activity["lon"] = coords
-                    await asyncio.sleep(1.0)
 
                 # A geocoded pin can be perfectly accurate and still be a genuinely
                 # different town/city than the trip's destination (e.g. a real day-trip
