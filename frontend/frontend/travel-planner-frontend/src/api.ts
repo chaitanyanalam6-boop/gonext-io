@@ -167,6 +167,13 @@ export async function reverseGeocode(lat: number, lon: number): Promise<string |
   return data.city ?? null
 }
 
+export async function getGeoCurrency(): Promise<string | null> {
+  const res = await fetch(`${API_BASE}/api/geo-currency`)
+  if (!res.ok) return null
+  const data = await res.json()
+  return data.currency ?? null
+}
+
 export async function getDestinationSuggestions(query: string, signal?: AbortSignal): Promise<string[]> {
   const url = `${API_BASE}/api/destination-suggestions?q=${encodeURIComponent(query)}`
   const res = await fetch(url, { signal })

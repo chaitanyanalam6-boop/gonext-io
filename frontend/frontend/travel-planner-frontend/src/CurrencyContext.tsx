@@ -76,6 +76,26 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       .catch(() => {})
   }, [])
 
+  // Browser locale (used synchronously above, for an instant first paint) reflects a
+  // language *setting*, not where someone actually is — plenty of people keep their
+  // phone in English (US) no matter which country they're in. The visitor's IP is a
+  // much more reliable "where are they right now" signal, so once it resolves it
+  // supersedes the locale guess — but only if the user still hasn't made an explicit
+  // choice by then, and it's applied straight to state (not persisted), so it stays
+  // live: someone traveling from India to the US sees USD on their next visit there
+  // without this permanently overriding a currency they deliberately picked.
+  useEffect(() => {
+    if (localStorage.getItem(CURRENCY_KEY)) return
+    api
+      .getGeoCurrency()
+      .then((detected) => {
+        if (detected && !localStorage.getItem(CURRENCY_KEY) && (SUPPORTED_CURRENCIES as readonly string[]).includes(detected)) {
+          setCurrencyState(detected)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   function setCurrency(code: string) {
     setCurrencyState(code)
     localStorage.setItem(CURRENCY_KEY, code)

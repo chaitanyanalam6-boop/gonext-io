@@ -1,4 +1,5 @@
 import asyncio
+import ipaddress
 import json
 import math
 import random
@@ -12,7 +13,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
@@ -1078,6 +1079,51 @@ async def reverse_geocode(lat: float, lon: float):
             if label:
                 return {"city": label}
     return {"city": None}
+
+# Browser/OS locale (e.g. "en-US") reflects a language *setting*, not where someone
+# actually is — plenty of travelers keep their phone in English (US) regardless of
+# which country they're in, so it's not a reliable signal for "what currency should
+# this person see." The visitor's IP address is the closest thing to a real answer.
+_GEO_REGION_CURRENCY = {"IN": "INR", "GB": "GBP", "JP": "JPY", "AU": "AUD", "CA": "CAD", "US": "USD"}
+_GEO_EUROZONE = {
+    "AT", "BE", "CY", "EE", "FI", "FR", "DE", "GR", "IE", "IT", "LV", "LT",
+    "LU", "MT", "NL", "PT", "SK", "SI", "ES", "HR",
+}
+_geo_currency_cache: dict = {}
+
+def _is_public_ip(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+        return not (addr.is_private or addr.is_loopback or addr.is_reserved or addr.is_link_local)
+    except ValueError:
+        return False
+
+@app.get("/api/geo-currency")
+async def geo_currency(request: Request):
+    """Best-effort currency guess from the visitor's IP-derived country — used only
+    as a first-time default, before anyone has picked a currency of their own."""
+    forwarded = request.headers.get("x-forwarded-for", "")
+    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "")
+    if not ip or not _is_public_ip(ip):
+        return {"currency": None}
+
+    if ip in _geo_currency_cache:
+        return {"currency": _geo_currency_cache[ip]}
+
+    currency = None
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"https://ipwho.is/{ip}", timeout=4.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                country = data.get("country_code")
+                if country:
+                    currency = _GEO_REGION_CURRENCY.get(country) or ("EUR" if country in _GEO_EUROZONE else None)
+    except (httpx.HTTPError, ValueError):
+        pass
+
+    _geo_currency_cache[ip] = currency
+    return {"currency": currency}
 
 _suggestion_cache: dict = {}
 
