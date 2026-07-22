@@ -1506,6 +1506,13 @@ async def generate_trip(request: TripRequest):
     ones; a 7-day trip's Day 7 deserves the same density as Day 1, not just a single
     landmark and a dinner.
 
+    Day 1's very first activity must be arrival logistics — landing at {request.destination}'s
+    real airport (name it) or main station, then transport to where the traveler is staying —
+    and the final day's very last activity must be the symmetric departure logistics (checkout,
+    transport back to that same airport/station). Give both a `type` of "Transport" and no
+    `details` (per the rule below), so the itinerary reads as a complete trip door-to-door,
+    not one that starts and ends already in the middle of sightseeing.
+
     Plan this the way a knowledgeable LOCAL would guide a first-time visitor, not the way a
     generic "top 10 things to do" list would. Mix must-see iconic landmarks with authentic,
     traditional experiences a local would actually recommend — a neighborhood eatery, a
