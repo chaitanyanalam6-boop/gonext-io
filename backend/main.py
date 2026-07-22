@@ -3,6 +3,7 @@ import json
 import math
 import random
 import re
+import time
 import unicodedata
 from datetime import datetime, timedelta, timezone
 
@@ -1060,27 +1061,73 @@ async def reverse_geocode(lat: float, lon: float):
     Routed through the backend (rather than called from the browser) so we can send
     Nominatim's requested identifying User-Agent header, which fetch() can't set."""
     async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                "https://nominatim.openstreetmap.org/reverse",
-                params={"lat": lat, "lon": lon, "format": "json", "zoom": 10},
-                headers=WIKIPEDIA_HEADERS,
-                timeout=5.0,
+        data = await _nominatim_get(
+            client,
+            {"lat": lat, "lon": lon, "format": "json", "zoom": 10},
+            url="https://nominatim.openstreetmap.org/reverse",
+        )
+        if data:
+            address = data.get("address", {})
+            city = (
+                address.get("city")
+                or address.get("town")
+                or address.get("village")
+                or address.get("county")
             )
-            if resp.status_code == 200:
-                address = resp.json().get("address", {})
-                city = (
-                    address.get("city")
-                    or address.get("town")
-                    or address.get("village")
-                    or address.get("county")
-                )
-                label = ", ".join(part for part in [city, address.get("country")] if part)
-                if label:
-                    return {"city": label}
-        except httpx.HTTPError:
-            pass
+            label = ", ".join(part for part in [city, address.get("country")] if part)
+            if label:
+                return {"city": label}
     return {"city": None}
+
+_suggestion_cache: dict = {}
+
+# Nominatim's own /search does literal name matching (querying "Tok" only finds
+# places actually *named* "Tok" — it never surfaces "Tokyo"), which makes it the
+# wrong tool for a type-ahead box despite being the right one for geocoding a
+# complete address. Photon (Komoot's free geocoder, built on the same OSM data) is
+# purpose-built for prefix/autocomplete search instead, and isn't bound by
+# Nominatim's 1-req/sec policy, so it doesn't need the shared rate limiter above.
+PHOTON_URL = "https://photon.komoot.io/api/"
+_PLACE_TAGS = ["city", "country", "town", "state", "village", "province", "municipality"]
+
+def _photon_label(props: dict) -> Optional[str]:
+    name = props.get("name")
+    country = props.get("country")
+    if not name:
+        return None
+    if props.get("osm_value") == "country":
+        return name
+    return ", ".join(part for part in [name, country] if part)
+
+@app.get("/api/destination-suggestions")
+async def destination_suggestions(q: str):
+    """Autocomplete for the destination search box."""
+    query = q.strip()
+    if len(query) < 2:
+        return {"suggestions": []}
+
+    cache_key = query.lower()
+    if cache_key in _suggestion_cache:
+        return {"suggestions": _suggestion_cache[cache_key]}
+
+    suggestions: List[str] = []
+    params = [("q", query), ("limit", "8"), ("lang", "en")]
+    params += [("osm_tag", f"place:{tag}") for tag in _PLACE_TAGS]
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(PHOTON_URL, params=params, headers=WIKIPEDIA_HEADERS, timeout=5.0)
+            if resp.status_code == 200:
+                for feature in resp.json().get("features", []):
+                    label = _photon_label(feature.get("properties", {}))
+                    if label and label not in suggestions:
+                        suggestions.append(label)
+                    if len(suggestions) == 5:
+                        break
+    except (httpx.HTTPError, ValueError):
+        pass
+
+    _suggestion_cache[cache_key] = suggestions
+    return {"suggestions": suggestions}
 
 _WEATHER_CODE_INFO = {
     0: ("Clear sky", "☀️"),
@@ -1201,6 +1248,33 @@ async def get_exchange_rates():
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 
+# Nominatim's free-tier usage policy caps the whole app at 1 request/second with no
+# concurrency — not per-request, per-app. A plain sleep-after-each-call inside one
+# request only serializes calls *within* that request; two different users hitting
+# Nominatim at the same time (one generating a trip, one typing in the destination
+# search box) could still fire concurrently. This lock + last-call timestamp
+# enforces the 1/sec floor globally, across every caller, however many requests are
+# in flight at once.
+_nominatim_lock = asyncio.Lock()
+_nominatim_last_call = 0.0
+
+async def _nominatim_get(client: httpx.AsyncClient, params: dict, url: str = NOMINATIM_URL):
+    """Returns whatever Nominatim's JSON response decodes to — a list of results for
+    /search, a single object for /reverse — or None on any failure."""
+    global _nominatim_last_call
+    async with _nominatim_lock:
+        wait = _nominatim_last_call + 1.0 - time.monotonic()
+        if wait > 0:
+            await asyncio.sleep(wait)
+        try:
+            resp = await client.get(url, params=params, headers=WIKIPEDIA_HEADERS, timeout=5.0)
+            results = resp.json() if resp.status_code == 200 else None
+        except (httpx.HTTPError, ValueError):
+            results = None
+        finally:
+            _nominatim_last_call = time.monotonic()
+    return results
+
 _geocode_cache: dict = {}
 
 async def geocode_location(client: httpx.AsyncClient, query: str) -> Optional[tuple]:
@@ -1214,8 +1288,7 @@ async def geocode_location(client: httpx.AsyncClient, query: str) -> Optional[tu
     location within one trip (e.g. the same hotel or market visited twice) and
     across different requests entirely (a landmark like "Colosseum, Rome" gets
     requested by every Rome trip). A cache hit skips both the network round trip
-    and the mandatory rate-limit sleep below, which is where most of the latency
-    actually is for a long itinerary.
+    and the rate-limit wait entirely.
     """
     cache_key = query.strip().lower()
     if cache_key in _geocode_cache:
@@ -1223,23 +1296,13 @@ async def geocode_location(client: httpx.AsyncClient, query: str) -> Optional[tu
 
     result = None
     try:
-        resp = await client.get(
-            NOMINATIM_URL,
-            params={"q": query, "format": "json", "limit": 1},
-            headers=WIKIPEDIA_HEADERS,
-            timeout=5.0,
-        )
-        if resp.status_code == 200:
-            results = resp.json()
-            if results:
-                result = float(results[0]["lat"]), float(results[0]["lon"])
-    except (httpx.HTTPError, ValueError, KeyError):
+        results = await _nominatim_get(client, {"q": query, "format": "json", "limit": 1})
+        if results:
+            result = float(results[0]["lat"]), float(results[0]["lon"])
+    except (ValueError, KeyError):
         pass
 
     _geocode_cache[cache_key] = result
-    # Nominatim's free-tier usage policy caps requests at 1/second with no
-    # concurrency — only needed after an actual network call, never on a cache hit.
-    await asyncio.sleep(1.0)
     return result
 
 def _degrees_apart(a: tuple, b: tuple) -> float:

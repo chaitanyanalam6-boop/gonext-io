@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, KeyboardEvent } from 'react'
 import { DAY_THEME_OPTIONS, TRIP_TYPE_OPTIONS } from '../types'
 import type { TripRequest } from '../types'
 import * as api from '../api'
@@ -28,6 +28,11 @@ const HERO_IMAGE_CACHE_KEY = 'gonext-hero-image'
 export default function TripForm({ onSubmit, loading, presetDestination }: TripFormProps) {
   const { currency, setCurrency, toDisplayAmount, toUsdAmount } = useCurrency()
   const [destination, setDestination] = useState('')
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [activeSuggestion, setActiveSuggestion] = useState(-1)
+  const skipNextLookupRef = useRef(false)
+  const destinationFieldRef = useRef<HTMLDivElement>(null)
   const [budget, setBudget] = useState(1000)
   const [days, setDays] = useState(3)
   const [tripType, setTripType] = useState<string>(TRIP_TYPE_OPTIONS[0])
@@ -103,6 +108,71 @@ export default function TripForm({ onSubmit, loading, presetDestination }: TripF
     }
   }, [presetDestination])
 
+  // Debounced destination autocomplete: waits for a pause in typing before asking
+  // the backend, and cancels any still-in-flight lookup for a since-changed query
+  // so a slow response can't overwrite what the user has typed since.
+  useEffect(() => {
+    if (skipNextLookupRef.current) {
+      skipNextLookupRef.current = false
+      return
+    }
+    const query = destination.trim()
+    if (query.length < 2) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      api
+        .getDestinationSuggestions(query, controller.signal)
+        .then((results) => {
+          setSuggestions(results)
+          setShowSuggestions(results.length > 0)
+          setActiveSuggestion(-1)
+        })
+        .catch(() => {})
+    }, 300)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [destination])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (destinationFieldRef.current && !destinationFieldRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  function selectSuggestion(value: string) {
+    skipNextLookupRef.current = true
+    setDestination(value)
+    setSuggestions([])
+    setShowSuggestions(false)
+    setActiveSuggestion(-1)
+  }
+
+  function handleDestinationKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (!showSuggestions || suggestions.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveSuggestion((i) => (i + 1) % suggestions.length)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveSuggestion((i) => (i <= 0 ? suggestions.length - 1 : i - 1))
+    } else if (e.key === 'Enter' && activeSuggestion >= 0) {
+      e.preventDefault()
+      selectSuggestion(suggestions[activeSuggestion])
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false)
+    }
+  }
+
   function handleDaysChange(value: number) {
     const clamped = Math.min(Math.max(value, 1), DAYS_MAX)
     setDays(clamped)
@@ -152,7 +222,7 @@ export default function TripForm({ onSubmit, loading, presetDestination }: TripF
                 <span className="trip-form-kicker">✈ Plan smarter</span>
               </div>
 
-              <div className="field field-wide">
+              <div className="field field-wide destination-field" ref={destinationFieldRef}>
                 <label htmlFor="destination">Destination</label>
                 <div className="input-with-icon">
                   <input
@@ -161,10 +231,34 @@ export default function TripForm({ onSubmit, loading, presetDestination }: TripF
                     placeholder="e.g. Tokyo, Japan"
                     value={destination}
                     onChange={(e) => setDestination(e.target.value)}
+                    onKeyDown={handleDestinationKeyDown}
+                    onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                    autoComplete="off"
+                    role="combobox"
+                    aria-expanded={showSuggestions ? 'true' : 'false'}
+                    aria-controls="destination-suggestions"
+                    aria-autocomplete="list"
                     required
                   />
                   <span className="input-icon">🔍</span>
                 </div>
+                {showSuggestions && (
+                  <ul className="destination-suggestions" id="destination-suggestions" role="listbox">
+                    {suggestions.map((s, i) => (
+                      <li
+                        key={s}
+                        role="option"
+                        aria-selected={i === activeSuggestion ? 'true' : 'false'}
+                        className={i === activeSuggestion ? 'active' : ''}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectSuggestion(s)}
+                        onMouseEnter={() => setActiveSuggestion(i)}
+                      >
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
 
               <div className="trip-form-row">

@@ -167,6 +167,14 @@ export async function reverseGeocode(lat: number, lon: number): Promise<string |
   return data.city ?? null
 }
 
+export async function getDestinationSuggestions(query: string, signal?: AbortSignal): Promise<string[]> {
+  const url = `${API_BASE}/api/destination-suggestions?q=${encodeURIComponent(query)}`
+  const res = await fetch(url, { signal })
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.suggestions ?? []
+}
+
 export async function getWeather(lat: number, lon: number): Promise<WeatherResponse> {
   const res = await fetch(`${API_BASE}/api/weather?lat=${lat}&lon=${lon}`)
   if (!res.ok) return { available: false }

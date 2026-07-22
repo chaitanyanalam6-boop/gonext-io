@@ -183,6 +183,40 @@ body {
   width: 100%;
 }
 
+.destination-field {
+  position: relative;
+}
+
+.destination-suggestions {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin: 0;
+  padding: 0.4rem;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.destination-suggestions li {
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.destination-suggestions li.active,
+.destination-suggestions li:hover {
+  background: var(--accent-tint);
+}
+
 .trip-form-row {
   display: flex;
   gap: 0.75rem;
