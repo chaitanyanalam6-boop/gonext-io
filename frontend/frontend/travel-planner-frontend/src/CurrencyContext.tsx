@@ -24,6 +24,33 @@ export const CURRENCY_SYMBOLS: Record<string, string> = {
   CAD: '$',
 }
 
+const EUROZONE = new Set([
+  'AT', 'BE', 'CY', 'EE', 'FI', 'FR', 'DE', 'GR', 'IE', 'IT', 'LV', 'LT',
+  'LU', 'MT', 'NL', 'PT', 'SK', 'SI', 'ES', 'HR',
+])
+const REGION_CURRENCY: Record<string, string> = {
+  IN: 'INR',
+  GB: 'GBP',
+  JP: 'JPY',
+  AU: 'AUD',
+  CA: 'CAD',
+  US: 'USD',
+}
+
+/** Best-effort guess at the visitor's currency from their browser/OS locale (e.g.
+ * "en-IN" -> INR) — used only as the very first default, before anyone has picked
+ * a currency of their own. Falls back to USD for anything unrecognized, same as
+ * before this existed. */
+function detectCurrency(): string {
+  for (const locale of navigator.languages ?? [navigator.language]) {
+    const region = locale.split('-')[1]?.toUpperCase()
+    if (!region) continue
+    if (REGION_CURRENCY[region]) return REGION_CURRENCY[region]
+    if (EUROZONE.has(region)) return 'EUR'
+  }
+  return 'USD'
+}
+
 interface CurrencyContextValue {
   currency: string
   setCurrency: (code: string) => void
@@ -39,7 +66,7 @@ const CurrencyContext = createContext<CurrencyContextValue | null>(null)
 const CURRENCY_KEY = 'travel-planner-currency'
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-  const [currency, setCurrencyState] = useState<string>(() => localStorage.getItem(CURRENCY_KEY) || 'USD')
+  const [currency, setCurrencyState] = useState<string>(() => localStorage.getItem(CURRENCY_KEY) || detectCurrency())
   const [rates, setRates] = useState<Record<string, number>>({ USD: 1 })
 
   useEffect(() => {

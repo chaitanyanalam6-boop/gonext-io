@@ -8,7 +8,7 @@ import LogoMark from './LogoMark'
 import HowItWorks from './HowItWorks'
 import Reveal from './Reveal'
 import SliderField from './SliderField'
-import { SUPPORTED_CURRENCIES, useCurrency } from '../CurrencyContext'
+import { useCurrency } from '../CurrencyContext'
 
 interface TripFormProps {
   onSubmit: (request: TripRequest) => void
@@ -26,7 +26,7 @@ const DAYS_MAX = 14
 const HERO_IMAGE_CACHE_KEY = 'gonext-hero-image'
 
 export default function TripForm({ onSubmit, loading, presetDestination }: TripFormProps) {
-  const { currency, setCurrency, toDisplayAmount, toUsdAmount } = useCurrency()
+  const { currency, toDisplayAmount, toUsdAmount } = useCurrency()
   const [destination, setDestination] = useState('')
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -361,20 +361,6 @@ export default function TripForm({ onSubmit, loading, presetDestination }: TripF
         <span className="plan-footer-logo">
           <LogoMark size={26} showTagline />
         </span>
-        <div className="plan-footer-selects">
-          <select
-            aria-label="Currency"
-            value={currency}
-            onChange={(e) => setCurrency(e.target.value)}
-            className="plan-footer-select"
-          >
-            {SUPPORTED_CURRENCIES.map((code) => (
-              <option key={code} value={code}>
-                Currency: {code}
-              </option>
-            ))}
-          </select>
-        </div>
       </footer>
     </div>
   )

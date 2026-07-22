@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../AuthContext'
+import { SUPPORTED_CURRENCIES, useCurrency } from '../CurrencyContext'
 import LogoMark from './LogoMark'
 import type { User } from '../types'
 
@@ -33,6 +34,7 @@ function initials(user: User) {
 
 export default function AppHeader({ activeScreen, onNavigate, onGoHome, onOpenAuth }: AppHeaderProps) {
   const { user, logout } = useAuth()
+  const { currency, setCurrency } = useCurrency()
   const [menuOpen, setMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
@@ -72,6 +74,19 @@ export default function AppHeader({ activeScreen, onNavigate, onGoHome, onOpenAu
       </nav>
 
       <div className="app-header-actions">
+        <select
+          aria-label="Currency"
+          className="header-currency-select"
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+        >
+          {SUPPORTED_CURRENCIES.map((code) => (
+            <option key={code} value={code}>
+              {code}
+            </option>
+          ))}
+        </select>
+
         {user ? (
           <div className="avatar-menu">
             <button type="button" className="avatar-button" onClick={() => setMenuOpen((v) => !v)}>
@@ -146,6 +161,21 @@ export default function AppHeader({ activeScreen, onNavigate, onGoHome, onOpenAu
               {label}
             </button>
           ))}
+
+          <div className="mobile-menu-currency">
+            <label htmlFor="mobile-currency-select">Currency</label>
+            <select
+              id="mobile-currency-select"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+            >
+              {SUPPORTED_CURRENCIES.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {!user && (
             <div className="mobile-menu-auth">

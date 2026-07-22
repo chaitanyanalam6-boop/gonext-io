@@ -1256,6 +1256,49 @@ body {
   margin-left: auto;
 }
 
+.header-currency-select {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.header-currency-select:hover {
+  border-color: var(--accent);
+}
+
+.header-currency-select option {
+  color: #12233d;
+}
+
+.mobile-menu-currency {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 0.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.mobile-menu-currency select {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-weight: 600;
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+}
+
+.mobile-menu-currency select option {
+  color: #12233d;
+}
+
 .header-link {
   background: none;
   border: none;
@@ -2360,20 +2403,6 @@ body {
 .plan-footer-logo {
   display: flex;
   align-items: center;
-}
-
-.plan-footer-selects {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.plan-footer-select {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 0.4rem 0.7rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
 }
 
 /* --- Below-the-fold: destinations carousel + how it works --- */
