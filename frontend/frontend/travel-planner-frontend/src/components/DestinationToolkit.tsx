@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import * as api from '../api'
+import { useCurrency } from '../CurrencyContext'
 import type { TripPlanResponse, WeatherResponse } from '../types'
 import VoiceTranslator from './VoiceTranslator'
 
@@ -37,6 +38,7 @@ function weekday(dateStr: string) {
 }
 
 export default function DestinationToolkit({ trip }: DestinationToolkitProps) {
+  const { convertPricesInText } = useCurrency()
   const [weather, setWeather] = useState<WeatherResponse | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [showQr, setShowQr] = useState(false)
@@ -81,7 +83,7 @@ export default function DestinationToolkit({ trip }: DestinationToolkitProps) {
       {trip.toolkit?.advisory && (
         <div className="toolkit-advisory">
           <span className="toolkit-advisory-icon">💡</span>
-          <p>{trip.toolkit.advisory}</p>
+          <p>{convertPricesInText(trip.toolkit.advisory)}</p>
         </div>
       )}
 
@@ -127,7 +129,7 @@ export default function DestinationToolkit({ trip }: DestinationToolkitProps) {
           <>
             <div className="toolkit-card">
               <h3>Local payments</h3>
-              <p className="toolkit-card-text">{trip.toolkit.localPayments}</p>
+              <p className="toolkit-card-text">{convertPricesInText(trip.toolkit.localPayments)}</p>
             </div>
 
             <div className="toolkit-card">

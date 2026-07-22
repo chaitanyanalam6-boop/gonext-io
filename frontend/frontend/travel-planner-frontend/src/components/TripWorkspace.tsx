@@ -105,7 +105,7 @@ export default function TripWorkspace({
   onSave,
   onRequireAuth,
 }: TripWorkspaceProps) {
-  const { formatPrice } = useCurrency()
+  const { formatPrice, convertPricesInText } = useCurrency()
   const [section, setSection] = useState<Section>('overview')
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
   const [originCity, setOriginCity] = useState<string | null>(null)
@@ -182,7 +182,7 @@ export default function TripWorkspace({
         {activity.image && (
           <SmartImage className="activity-detail-img" src={activity.image} alt={activity.title} icon="🖼️" />
         )}
-        {activity.details && <p className="activity-detail-text">{activity.details}</p>}
+        {activity.details && <p className="activity-detail-text">{convertPricesInText(activity.details)}</p>}
         <div className="activity-detail-actions">
           <a href={directionsUrl(activity)} target="_blank" rel="noopener noreferrer" className="booking-button">
             <PinIcon size={16} /> Get directions

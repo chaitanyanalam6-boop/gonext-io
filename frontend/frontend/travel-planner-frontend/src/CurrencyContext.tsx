@@ -59,6 +59,11 @@ interface CurrencyContextValue {
   toDisplayAmount: (usdAmount: number) => number
   /** selected currency -> USD, as a raw number — the inverse of toDisplayAmount. */
   toUsdAmount: (displayAmount: number) => number
+  /** Converts dollar amounts written *inside* free-form AI-generated text (e.g. "Order
+   * the crab cakes, ~$22") to the selected currency. The trip's structured `cost` field
+   * already converts correctly since it's a plain number — this is only for prices
+   * Gemini wrote directly into a sentence as prose, which formatPrice() never sees. */
+  convertPricesInText: (text: string) => string
 }
 
 const CurrencyContext = createContext<CurrencyContextValue | null>(null)
@@ -129,8 +134,28 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     return displayAmount / (rates[currency] ?? 1)
   }
 
+  // Matches "$22", "$4.50", "$4-6", and "$4-$6" — the shapes the trip-generation
+  // prompt asks Gemini to use for prices mentioned inline (a dish, a ticket range).
+  function convertPricesInText(text: string) {
+    if (currency === 'USD') return text
+    return text.replace(
+      /\$([\d,]+(?:\.\d+)?)(?:\s*-\s*\$?([\d,]+(?:\.\d+)?))?/g,
+      (match, low: string, high?: string) => {
+        const lowUsd = parseFloat(low.replace(/,/g, ''))
+        if (Number.isNaN(lowUsd)) return match
+        const lowFormatted = formatPrice(lowUsd)
+        if (!high) return lowFormatted
+        const highUsd = parseFloat(high.replace(/,/g, ''))
+        if (Number.isNaN(highUsd)) return lowFormatted
+        return `${lowFormatted}-${formatPrice(highUsd)}`
+      },
+    )
+  }
+
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, formatPrice, toDisplayAmount, toUsdAmount }}>
+    <CurrencyContext.Provider
+      value={{ currency, setCurrency, formatPrice, toDisplayAmount, toUsdAmount, convertPricesInText }}
+    >
       {children}
     </CurrencyContext.Provider>
   )
