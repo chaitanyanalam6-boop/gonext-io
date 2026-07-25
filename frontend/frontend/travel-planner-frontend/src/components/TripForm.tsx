@@ -183,8 +183,19 @@ export default function TripForm({ onSubmit, loading, presetDestination }: TripF
     })
   }
 
-  const budgetSliderMin = Math.round(toDisplayAmount(BUDGET_MIN_USD))
-  const budgetSliderMax = Math.round(toDisplayAmount(BUDGET_MAX_USD))
+  // The USD min/max converted at today's live rate lands on an arbitrary figure like
+  // 2,075 or 830,347 — technically correct but reads as noise. Round to 2 significant
+  // figures so the bound itself looks like a deliberate number (2,100; 830,000) in
+  // whatever currency it's shown in. Never applied to the user's own slider value.
+  function roundToNiceFigure(n: number): number {
+    if (n <= 0) return 0
+    const digits = Math.floor(Math.log10(n)) + 1
+    const step = Math.pow(10, Math.max(0, digits - 2))
+    return Math.round(n / step) * step
+  }
+
+  const budgetSliderMin = roundToNiceFigure(Math.round(toDisplayAmount(BUDGET_MIN_USD)))
+  const budgetSliderMax = roundToNiceFigure(Math.round(toDisplayAmount(BUDGET_MAX_USD)))
   const budgetSliderValue = Math.round(toDisplayAmount(budget))
   const budgetSliderStep = Math.max(1, Math.round((budgetSliderMax - budgetSliderMin) / 95))
 
