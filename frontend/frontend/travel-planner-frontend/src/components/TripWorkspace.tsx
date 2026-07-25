@@ -58,12 +58,6 @@ function isLodging(activity: Activity) {
   return haystack.includes('hotel') || haystack.includes('lodging') || haystack.includes('check-in') || haystack.includes('check in')
 }
 
-const EXCURSION_KM_THRESHOLD = 15
-
-function isExcursion(activity: Activity) {
-  return typeof activity.distanceFromBaseKm === 'number' && activity.distanceFromBaseKm > EXCURSION_KM_THRESHOLD
-}
-
 // Gemini sometimes sets a day's `label` to a plain "Day 1" and sometimes to a themed
 // title ("Arrival & Riverside Charm") — the day number itself must never depend on
 // that, since it's shown either way. Only show `label` as extra text when it's
@@ -150,9 +144,6 @@ export default function TripWorkspace({
     if (activeDay) return activeDay.activities
     return trip.days.flatMap((d) => d.activities)
   }, [activeDay, trip.days])
-
-  // "Rajamahendravaram, Andhra Pradesh, India" -> "Rajamahendravaram" for compact badges.
-  const destinationShortName = trip.destination.split(',')[0].trim()
 
   // Real photos already fetched for the destination + its top highlights — reuse them
   // as hero slides instead of a single static image, capped to keep the cycle short.
@@ -412,11 +403,6 @@ export default function TripWorkspace({
                       <div>
                         <h4>{activity.title}</h4>
                         <p className="activity-meta">{activity.location}</p>
-                        {isExcursion(activity) && (
-                          <span className="excursion-badge">
-                            🚗 {Math.round(activity.distanceFromBaseKm!)} km from {destinationShortName}
-                          </span>
-                        )}
                       </div>
                     </button>
                     {selectedActivityId === activity.id && renderActivityDetail(activity)}
@@ -461,11 +447,6 @@ export default function TripWorkspace({
                         {activity.location} · {activity.duration}
                         {activity.cost > 0 && ` · ${formatPrice(activity.cost)}`}
                       </p>
-                      {isExcursion(activity) && (
-                        <span className="excursion-badge">
-                          🚗 {Math.round(activity.distanceFromBaseKm!)} km from {destinationShortName}
-                        </span>
-                      )}
                       {activity.notes && <p className="activity-notes">{activity.notes}</p>}
                     </div>
                   </button>
