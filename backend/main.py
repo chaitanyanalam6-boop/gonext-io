@@ -1323,22 +1323,35 @@ async def _nominatim_get(client: httpx.AsyncClient, params: dict, url: str = NOM
 
 _geocode_cache: dict = {}
 
+# A destination's real-world coordinates don't change, but a single bad Nominatim
+# response (a rate-limit hiccup, a transient bad match) used to get cached forever —
+# every trip to that destination for the rest of the process's uptime would then
+# anchor on the same wrong point, throwing off every activity's "distance from base"
+# even though the activities themselves geocoded correctly. A TTL bounds how long a
+# bad entry can live and lets it self-heal on the next lookup instead of requiring a
+# process restart.
+_GEOCODE_CACHE_TTL_SECONDS = 6 * 60 * 60
+
 async def geocode_location(client: httpx.AsyncClient, query: str) -> Optional[tuple]:
     """Look up the real coordinates of an address via Nominatim (OpenStreetMap's
     free geocoder — same provider as our map tiles). Gemini's own lat/lon guesses
     are frequently wrong or duplicated across activities; this replaces them with
     coordinates actually resolved from the activity's address text.
 
-    Real-world coordinates for a named place don't change, so results are cached
-    for the life of the process — both across activities that repeat the same
-    location within one trip (e.g. the same hotel or market visited twice) and
-    across different requests entirely (a landmark like "Colosseum, Rome" gets
-    requested by every Rome trip). A cache hit skips both the network round trip
-    and the rate-limit wait entirely.
+    Successful results are cached (with a TTL, see above) both across activities
+    that repeat the same location within one trip (e.g. the same hotel or market
+    visited twice) and across different requests entirely (a landmark like
+    "Colosseum, Rome" gets requested by every Rome trip). A cache hit skips both
+    the network round trip and the rate-limit wait entirely. Failed lookups are
+    never cached, so a transient failure just retries on the next request rather
+    than permanently blocking that query.
     """
     cache_key = query.strip().lower()
-    if cache_key in _geocode_cache:
-        return _geocode_cache[cache_key]
+    cached = _geocode_cache.get(cache_key)
+    if cached is not None:
+        value, cached_at = cached
+        if time.monotonic() - cached_at < _GEOCODE_CACHE_TTL_SECONDS:
+            return value
 
     result = None
     try:
@@ -1348,7 +1361,8 @@ async def geocode_location(client: httpx.AsyncClient, query: str) -> Optional[tu
     except (ValueError, KeyError):
         pass
 
-    _geocode_cache[cache_key] = result
+    if result is not None:
+        _geocode_cache[cache_key] = (result, time.monotonic())
     return result
 
 def _degrees_apart(a: tuple, b: tuple) -> float:
