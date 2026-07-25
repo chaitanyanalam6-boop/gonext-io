@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import TripForm from './components/TripForm'
 import TripWorkspace from './components/TripWorkspace'
 import LoadingView from './components/LoadingView'
@@ -14,6 +14,15 @@ import { useAuth } from './AuthContext'
 import type { TripPlanResponse, TripRequest } from './types'
 
 type Screen = 'plan' | 'discover' | 'loading' | 'workspace' | 'myTrips' | 'community' | 'sharedTrip' | 'settings'
+
+// Trip generation regularly takes 10-30+ seconds (AI call plus per-activity geocoding).
+// Mobile browsers routinely reload or discard a backgrounded tab during that window —
+// switching apps, taking a call, or even just the back gesture — which wipes all
+// in-memory state. Stashing the in-flight request here lets a fresh mount detect
+// "generation was interrupted" and resume it, instead of dropping the user back on
+// an empty form. sessionStorage (not localStorage) is deliberate: it's scoped to this
+// tab and survives exactly the reload/discard-and-restore cycle we're guarding against.
+const PENDING_REQUEST_KEY = 'gonext-pending-trip-request'
 
 export default function App() {
   const { token } = useAuth()
@@ -33,18 +42,37 @@ export default function App() {
     setScreen('loading')
     setError(null)
     setPendingDestination(request.destination)
+    sessionStorage.setItem(PENDING_REQUEST_KEY, JSON.stringify(request))
     try {
       const result = await generateTrip(request)
+      sessionStorage.removeItem(PENDING_REQUEST_KEY)
       setTrip(result)
       setNotes('')
       setSavedTripId(null)
       setDirty(false)
       setScreen('workspace')
     } catch (err) {
+      sessionStorage.removeItem(PENDING_REQUEST_KEY)
       setError(err instanceof Error ? err.message : 'Something went wrong.')
       setScreen('plan')
     }
   }
+
+  // Runs once on mount: if a generation request was left pending (see above), the
+  // previous mount never got to see the result — resume it rather than showing the
+  // "plan" screen's empty form.
+  useEffect(() => {
+    const raw = sessionStorage.getItem(PENDING_REQUEST_KEY)
+    if (!raw) return
+    sessionStorage.removeItem(PENDING_REQUEST_KEY)
+    try {
+      const request = JSON.parse(raw) as TripRequest
+      handleSubmit(request)
+    } catch {
+      // Malformed leftover state — nothing to resume.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleReset() {
     setTrip(null)
