@@ -1332,7 +1332,7 @@ _geocode_cache: dict = {}
 # process restart.
 _GEOCODE_CACHE_TTL_SECONDS = 6 * 60 * 60
 
-async def geocode_location(client: httpx.AsyncClient, query: str) -> Optional[tuple]:
+async def geocode_location(client: httpx.AsyncClient, query: str, cache: bool = True) -> Optional[tuple]:
     """Look up the real coordinates of an address via Nominatim (OpenStreetMap's
     free geocoder — same provider as our map tiles). Gemini's own lat/lon guesses
     are frequently wrong or duplicated across activities; this replaces them with
@@ -1345,13 +1345,22 @@ async def geocode_location(client: httpx.AsyncClient, query: str) -> Optional[tu
     the network round trip and the rate-limit wait entirely. Failed lookups are
     never cached, so a transient failure just retries on the next request rather
     than permanently blocking that query.
+
+    Pass cache=False for a query where a single bad result would be unusually
+    costly to get stuck on (see geocode_activities' anchor lookup) — the free
+    public Nominatim instance is a best-effort service and can genuinely return
+    a different (occasionally implausible) top match for the identical query at
+    different times, e.g. matching a sprawling administrative region instead of
+    the city itself. Caching a query like that risks locking every future trip
+    to that destination onto the same bad point for the life of the TTL.
     """
     cache_key = query.strip().lower()
-    cached = _geocode_cache.get(cache_key)
-    if cached is not None:
-        value, cached_at = cached
-        if time.monotonic() - cached_at < _GEOCODE_CACHE_TTL_SECONDS:
-            return value
+    if cache:
+        cached = _geocode_cache.get(cache_key)
+        if cached is not None:
+            value, cached_at = cached
+            if time.monotonic() - cached_at < _GEOCODE_CACHE_TTL_SECONDS:
+                return value
 
     result = None
     try:
@@ -1361,7 +1370,7 @@ async def geocode_location(client: httpx.AsyncClient, query: str) -> Optional[tu
     except (ValueError, KeyError):
         pass
 
-    if result is not None:
+    if result is not None and cache:
         _geocode_cache[cache_key] = (result, time.monotonic())
     return result
 
@@ -1384,7 +1393,7 @@ async def geocode_activities(trip: dict, destination: str) -> None:
         # unrelated place on the other side of the world. Geocode the destination
         # itself first as a sanity anchor, and discard any activity result that
         # lands implausibly far from it (~2 degrees is roughly a large metro area).
-        anchor = await geocode_location(client, destination)
+        anchor = await geocode_location(client, destination, cache=False)
         if anchor:
             trip["destinationLat"], trip["destinationLon"] = anchor
 
