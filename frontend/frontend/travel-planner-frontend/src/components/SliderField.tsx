@@ -44,7 +44,14 @@ export default function SliderField({ id, label, min, max, step, value, onChange
           // "Plan my trip" as soon as this field existed with a non-1 step.
           step="any"
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            const raw = e.target.value
+            const n = Number(raw)
+            // Clamp the upper bound as the user types, not just on blur — otherwise
+            // typing e.g. "100" days visibly sits there looking accepted until the
+            // field loses focus, even though it silently gets corrected either way.
+            setDraft(raw.trim() !== '' && !Number.isNaN(n) && n > max ? String(max) : raw)
+          }}
           onBlur={commitDraft}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
