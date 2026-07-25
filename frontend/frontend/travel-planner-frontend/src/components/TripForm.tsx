@@ -19,10 +19,10 @@ interface TripFormProps {
 // The slider's scale is anchored in USD so it means the same real budget for every
 // traveler regardless of which currency they're viewing it in — only the displayed
 // min/max/value/ticks convert per currency.
-const BUDGET_MIN_USD = 200
+const BUDGET_MIN_USD = 25
 const BUDGET_MAX_USD = 10000
 const DAYS_MIN = 1
-const DAYS_MAX = 14
+const DAYS_MAX = 30
 const HERO_IMAGE_CACHE_KEY = 'gonext-hero-image'
 
 export default function TripForm({ onSubmit, loading, presetDestination }: TripFormProps) {
