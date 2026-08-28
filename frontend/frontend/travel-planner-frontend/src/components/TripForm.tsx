@@ -14,6 +14,7 @@ interface TripFormProps {
   onSubmit: (request: TripRequest) => void
   loading: boolean
   presetDestination?: string
+  error?: string | null
 }
 
 // The slider's scale is anchored in USD so it means the same real budget for every
@@ -25,7 +26,7 @@ const DAYS_MIN = 1
 const DAYS_MAX = 30
 const HERO_IMAGE_CACHE_KEY = 'gonext-hero-image'
 
-export default function TripForm({ onSubmit, loading, presetDestination }: TripFormProps) {
+export default function TripForm({ onSubmit, loading, presetDestination, error }: TripFormProps) {
   const { currency, toDisplayAmount, toUsdAmount } = useCurrency()
   const [destination, setDestination] = useState('')
   const [suggestions, setSuggestions] = useState<string[]>([])
@@ -346,6 +347,8 @@ export default function TripForm({ onSubmit, loading, presetDestination }: TripF
                   ))}
                 </div>
               )}
+
+              {error && <p className="error-banner">{error}</p>}
 
               <button type="submit" disabled={loading || !destination.trim() || budget <= 0 || days < 1}>
                 {loading ? 'Planning…' : 'Plan my trip'}

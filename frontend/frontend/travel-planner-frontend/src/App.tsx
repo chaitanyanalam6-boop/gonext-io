@@ -157,10 +157,7 @@ export default function App() {
       />
 
       {screen === 'plan' && (
-        <>
-          <TripForm onSubmit={handleSubmit} loading={false} presetDestination={presetDestination} />
-          {error && <p className="error-banner">{error}</p>}
-        </>
+        <TripForm onSubmit={handleSubmit} loading={false} presetDestination={presetDestination} error={error} />
       )}
 
       {screen === 'discover' && <Discover onSelectDestination={handleSelectFromDiscover} />}
